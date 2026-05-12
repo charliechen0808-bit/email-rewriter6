@@ -5,14 +5,20 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
+  const key = process.env.ANTHROPIC_API_KEY;
+
+  if (!key) {
+    return res.status(500).json({ error: "No API key found" });
+  }
+
+  if (!key.startsWith("sk-ant-")) {
+    return res.status(500).json({ error: "API key looks wrong", starts_with: key.slice(0, 10) });
+  }
+
   const { email, tone } = req.body;
 
   if (!email || !tone) {
     return res.status(400).json({ error: "Missing email or tone" });
-  }
-
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return res.status(500).json({ error: "API key not configured" });
   }
 
   try {
@@ -20,7 +26,7 @@ export default async function handler(req, res) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": process.env.ANTHROPIC_API_KEY,
+        "x-api-key": key,
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
@@ -42,17 +48,25 @@ export default async function handler(req, res) {
     try {
       data = JSON.parse(text);
     } catch (e) {
-      return res.status(500).json({ error: "Anthropic returned invalid response", raw: text.slice(0, 200) });
+      return res.status(500).json({ 
+        error: "Anthropic returned non-JSON", 
+        status: response.status,
+        raw: text.slice(0, 300) 
+      });
     }
 
     if (!response.ok) {
-      return res.status(500).json({ error: data?.error?.message || "Anthropic API error" });
+      return res.status(500).json({ 
+        error: data?.error?.message || "Anthropic API error",
+        type: data?.error?.type,
+        status: response.status
+      });
     }
 
     const result = data.content?.map((c) => c.text || "").join("") || "";
     return res.status(200).json({ result });
 
   } catch (err) {
-    return res.status(500).json({ error: err.message || "Unknown error" });
+    return res.status(500).json({ error: err.message });
   }
 }
