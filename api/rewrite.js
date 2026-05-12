@@ -27,14 +27,26 @@ export default async function handler(req, res) {
         model: "claude-sonnet-4-20250514",
         max_tokens: 1000,
         system: "You are an expert business writing assistant. Rewrite emails to be clear, polished, and effective. Return ONLY the rewritten email — no explanations, no subject line prefix, no extra commentary.",
-        messages: [{ role: "user", content: `Rewrite the following email in a ${tone} tone:\n\n${email}` }],
+        messages: [
+          {
+            role: "user",
+            content: `Rewrite the following email in a ${tone} tone:\n\n${email}`,
+          },
+        ],
       }),
     });
 
-    const data = await response.json();
+    const text = await response.text();
+
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      return res.status(500).json({ error: "Anthropic returned invalid response", raw: text.slice(0, 200) });
+    }
 
     if (!response.ok) {
-      return res.status(500).json({ error: data?.error?.message || "Anthropic API error", details: data });
+      return res.status(500).json({ error: data?.error?.message || "Anthropic API error" });
     }
 
     const result = data.content?.map((c) => c.text || "").join("") || "";
